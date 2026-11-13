@@ -38,5 +38,7 @@ Figures use Arial. Because Arial cannot be redistributed, it is not included: to
 figures exactly, place `arial.ttf` and `arialbd.ttf` in a folder `fonts/` at the top of the
 repository; otherwise the default font is used.
 
+The single-trial microstate pipeline (a1–a3) is based on scripts by Manon Haulotte.
+
 ## License
 MIT (see `LICENSE`).
