@@ -1,0 +1,386 @@
+---
+title: "Topo Project – Sample Statistics"
+author: "Korian Wicki"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    self-contained: true
+  pdf:
+    toc: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Overview
+
+This document computes descriptive statistics of the sample used in the
+topographic EEG analyses. Group membership is defined by the MoCA score
+(> 25 = HC, ≤ 25 = CI), **not** from the study/ID prefix.
+
+**Data source:** `all_vars_in_one_Korian.xlsx`  
+**Sheet:** `"Sheet1"`
+
+---
+
+# Setup
+
+```{r}
+#| label: setup
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(ggplot2)
+library(flextable)
+library(officer)
+
+# ---- adapt this path ----
+file_path  <- "G:/SW Topography/all_vars_in_one_Korian.xlsx"
+sheet_name <- "Sheet1"
+```
+
+---
+
+# Load Data
+
+```{r}
+#| label: load-data
+
+data <- read_excel(file_path, sheet = sheet_name)
+
+cat("Columns detected:\n")
+print(names(data))
+
+cat("\nFirst 6 rows:\n")
+head(data)
+```
+
+---
+
+# Prepare Variables
+
+```{r}
+#| label: prepare-vars
+
+data <- data %>%
+  mutate(
+    inclusion  = as.numeric(inclusion),
+    gender     = tolower(trimws(as.character(gender))),
+    age        = as.numeric(age),
+    group      = ifelse(MOCA_score > 25, "HC", "CI"),   # MoCA > 25 = HC, ≤ 25 = CI
+    is_CI      = group == "CI"
+  )
+```
+
+---
+
+# Sanity Checks — group correction
+
+```{r}
+#| label: group-audit
+
+# Cross-tab: study code vs true group (makes the reclassification explicit)
+data %>% filter(inclusion == 1) %>%
+  mutate(study = substr(ID, 1, 5)) %>%
+  count(study, group) %>% pivot_wider(names_from = group, values_from = n)
+
+# Corrected group Ns (expect HC = 25, CI = 15)
+data %>% filter(inclusion == 1) %>% count(group)
+
+# Clinical label (group_CZ, where available) vs. MoCA-based group
+data %>% filter(inclusion == 1) %>% count(group_CZ, group)
+
+# Participants whose clinical label disagrees with the MoCA-based group
+data %>% filter(inclusion == 1, !is.na(group_CZ),
+                (group_CZ == "Healthy") != (group == "HC")) %>%
+  select(ID, group_CZ, MOCA_score, group)
+
+# Safety: no person counted twice among included
+data %>% filter(inclusion == 1) %>%
+  mutate(suffix = sub(".*-", "", ID)) %>%
+  count(suffix) %>% filter(n > 1)
+```
+
+---
+
+# Overall Sample Statistics
+
+```{r}
+#| label: overall-stats
+
+n_total    <- n_distinct(data$ID)
+n_included <- data %>% filter(inclusion == 1) %>% summarise(n = n_distinct(ID)) %>% pull(n)
+n_excluded <- n_total - n_included
+
+cat("===== Overall sample =====\n")
+cat("Total participants:    ", n_total,    "\n")
+cat("Included participants: ", n_included, "\n")
+cat("Excluded participants: ", n_excluded, "\n")
+```
+
+---
+
+# Age Descriptives
+
+```{r}
+#| label: age-stats
+
+age_stats <- data %>%
+  filter(inclusion == 1) %>%
+  summarise(
+    N      = n_distinct(ID),
+    Mean   = round(mean(age, na.rm = TRUE), 2),
+    SD     = round(sd(age,   na.rm = TRUE), 2),
+    Median = round(median(age, na.rm = TRUE), 2),
+    Min    = min(age, na.rm = TRUE),
+    Max    = max(age, na.rm = TRUE)
+  )
+
+kable(age_stats, caption = "Age descriptives of included participants") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r}
+#| label: age-by-group
+
+age_by_group <- data %>%
+  filter(inclusion == 1) %>%
+  group_by(Group = group) %>%
+  summarise(
+    N      = n_distinct(ID),
+    Mean   = round(mean(age, na.rm = TRUE), 2),
+    SD     = round(sd(age,   na.rm = TRUE), 2),
+    Median = round(median(age, na.rm = TRUE), 2),
+    Min    = min(age, na.rm = TRUE),
+    Max    = max(age, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+kable(age_by_group, caption = "Age descriptives by group (included participants)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+---
+
+# Gender Distribution
+
+```{r}
+#| label: gender-stats
+
+gender_counts <- data %>%
+  filter(inclusion == 1) %>%
+  count(gender, name = "n") %>%
+  mutate(Percent = round(n / sum(n) * 100, 1))
+
+kable(gender_counts, col.names = c("Gender", "N", "%"),
+      caption = "Gender distribution of included participants") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+```{r}
+#| label: gender-by-group
+
+gender_by_group <- data %>%
+  filter(inclusion == 1) %>%
+  count(Group = group, gender, name = "n") %>%
+  group_by(Group) %>%
+  mutate(Percent = round(n / sum(n) * 100, 1)) %>%
+  ungroup()
+
+kable(gender_by_group, col.names = c("Group", "Gender", "N", "%"),
+      caption = "Gender distribution by group (included participants)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+```
+
+---
+
+# CI Group Statistics
+
+```{r}
+#| label: ci-stats
+
+n_CI_total    <- data %>% filter(group == "CI") %>%                 summarise(n = n_distinct(ID)) %>% pull(n)
+n_CI_included <- data %>% filter(group == "CI", inclusion == 1) %>% summarise(n = n_distinct(ID)) %>% pull(n)
+n_CI_excluded <- n_CI_total - n_CI_included
+
+cat("===== CI group =====\n")
+cat("Total CI participants:    ", n_CI_total,    "\n")
+cat("Included CI participants: ", n_CI_included, "\n")
+cat("Excluded CI participants: ", n_CI_excluded, "\n")
+```
+
+---
+
+# Compact Summary Table (for paper)
+
+```{r}
+#| label: paper-table
+
+paper_table <- data %>%
+  filter(inclusion == 1) %>%
+  group_by(Group = group) %>%
+  summarise(
+    N              = n_distinct(ID),
+    `Age M (SD)`   = paste0(round(mean(age, na.rm = TRUE), 1),
+                             " (", round(sd(age, na.rm = TRUE), 1), ")"),
+    `Age range`    = paste0(min(age, na.rm = TRUE), "–", max(age, na.rm = TRUE)),
+    `Female n (%)` = {
+                       f <- sum(gender %in% c("female", "f", "w", "weiblich"), na.rm = TRUE)
+                       paste0(f, " (", round(f / n() * 100, 1), "%)")
+                     },
+    .groups = "drop"
+  )
+
+total_row <- data %>%
+  filter(inclusion == 1) %>%
+  summarise(
+    Group          = "Total",
+    N              = n_distinct(ID),
+    `Age M (SD)`   = paste0(round(mean(age, na.rm = TRUE), 1),
+                             " (", round(sd(age, na.rm = TRUE), 1), ")"),
+    `Age range`    = paste0(min(age, na.rm = TRUE), "–", max(age, na.rm = TRUE)),
+    `Female n (%)` = {
+                       f <- sum(gender %in% c("female", "f", "w", "weiblich"), na.rm = TRUE)
+                       paste0(f, " (", round(f / n() * 100, 1), "%)")
+                     }
+  )
+
+paper_table <- bind_rows(paper_table, total_row)
+
+kable(paper_table, caption = "Sample characteristics of included participants") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  row_spec(nrow(paper_table), bold = TRUE)
+```
+
+---
+
+# Publication-Ready Flextable
+
+```{r}
+#| label: participant-table
+
+demo <- data %>%
+  filter(inclusion == 1) %>%
+  filter(!is.na(group))          # keep only classified, included participants
+
+p_ttest <- function(var, grp) t.test(var ~ grp)$p.value
+p_fisher <- function(var, grp) fisher.test(table(var, grp))$p.value   # Fisher's exact test
+
+HC <- demo %>% filter(group == "HC")
+CI <- demo %>% filter(group == "CI")
+
+n_hc     <- nrow(HC)
+n_ci     <- nrow(CI)
+male_hc  <- sum(HC$gender %in% c("m", "male", "männlich"), na.rm = TRUE)
+male_ci  <- sum(CI$gender %in% c("m", "male", "männlich"), na.rm = TRUE)
+fem_hc   <- sum(HC$gender %in% c("f", "female", "w", "weiblich"), na.rm = TRUE)
+fem_ci   <- sum(CI$gender %in% c("f", "female", "w", "weiblich"), na.rm = TRUE)
+
+rows <- tribble(
+  ~Variable, ~HC_M,              ~HC_SD, ~CI_M,             ~CI_SD, ~p,
+  "N",        n_hc,               NA,     n_ci,              NA,     NA,
+  "Male",     male_hc,            NA,     male_ci,           NA,     NA,
+  "Female",   fem_hc,             NA,     fem_ci,            NA,     p_fisher(demo$gender, demo$group),
+  "Age",      mean(HC$age, na.rm=TRUE), sd(HC$age, na.rm=TRUE), mean(CI$age, na.rm=TRUE), sd(CI$age, na.rm=TRUE), p_ttest(demo$age, demo$group),
+)
+```
+
+```{r}
+#| label: extra-vars-stats
+
+# NOTE: confirm these column names match your sheet (MOCA_score / PSQI_Score / Education)
+extra_rows <- tribble(
+  ~Variable,    ~HC_M,                             ~HC_SD,                        ~CI_M,                             ~CI_SD,                        ~p,
+  "MoCA",       mean(HC$MOCA_score, na.rm=TRUE),   sd(HC$MOCA_score, na.rm=TRUE), mean(CI$MOCA_score, na.rm=TRUE),   sd(CI$MOCA_score, na.rm=TRUE), t.test(MOCA_score ~ group, data=demo)$p.value,
+  "PSQI",       mean(HC$PSQI_Score, na.rm=TRUE),   sd(HC$PSQI_Score, na.rm=TRUE), mean(CI$PSQI_Score, na.rm=TRUE),   sd(CI$PSQI_Score, na.rm=TRUE), t.test(PSQI_Score ~ group, data=demo)$p.value,
+  "Education",  mean(HC$Education,  na.rm=TRUE),   sd(HC$Education,  na.rm=TRUE), mean(CI$Education,  na.rm=TRUE),   sd(CI$Education,  na.rm=TRUE), wilcox.test(Education ~ group, data=demo)$p.value,
+)
+
+all_rows <- bind_rows(rows, extra_rows)
+
+fmt_p <- function(p) ifelse(is.na(p), "", ifelse(p < .001, "<.001", formatC(round(p, 2), 2, format = "f")))
+
+table_df <- all_rows %>%
+  mutate(
+    HC_M  = ifelse(row_number() <= 3,
+                   ifelse(is.na(HC_M), "", as.character(as.integer(HC_M))),
+                   ifelse(is.na(HC_M), "", formatC(round(HC_M, 2), 2, format = "f"))),
+    HC_SD = ifelse(is.na(HC_SD), "", formatC(round(HC_SD, 2), 2, format = "f")),
+    CI_M  = ifelse(row_number() <= 3,
+                   ifelse(is.na(CI_M), "", as.character(as.integer(CI_M))),
+                   ifelse(is.na(CI_M), "", formatC(round(CI_M, 2), 2, format = "f"))),
+    CI_SD = ifelse(is.na(CI_SD), "", formatC(round(CI_SD, 2), 2, format = "f")),
+    p     = fmt_p(p)
+  )
+
+# 95% CI of the mean (t distribution), requested by Reviewer 1
+m_ci <- function(x) {
+  x <- x[!is.na(x)]; m <- mean(x)
+  h <- qt(.975, length(x) - 1) * sd(x) / sqrt(length(x))
+  sprintf("%.2f [%.2f, %.2f]", m, m - h, m + h)
+}
+vars <- c("age", "MOCA_score", "PSQI_Score", "Education")   # rows 4–7: Age, MoCA, PSQI, Education
+table_df$HC_M[4:7] <- sapply(vars, function(v) m_ci(HC[[v]]))
+table_df$CI_M[4:7] <- sapply(vars, function(v) m_ci(CI[[v]]))
+
+```
+
+```{r}
+#| label: render-table
+
+ft <- flextable(table_df) %>%
+  set_header_labels(
+    Variable = "", HC_M = "M [95% CI]", HC_SD = "SD",
+    CI_M = "M [95% CI]", CI_SD = "SD", p = "p"
+  ) %>%
+  add_header_row(
+    values    = c("", "HC group", "CI group", ""),
+    colwidths = c(1, 2, 2, 1)
+  ) %>%
+  hline(i = 1, j = 2:3, part = "header", border = fp_border(color = "black", width = 1)) %>%
+  hline(i = 1, j = 4:5, part = "header", border = fp_border(color = "black", width = 1)) %>%
+  hline_top(part = "header",    border = fp_border(color = "black", width = 1.5)) %>%
+  hline_bottom(part = "header", border = fp_border(color = "black", width = 1)) %>%
+  hline_bottom(part = "body",   border = fp_border(color = "black", width = 1.5)) %>%
+  border_inner_h(border = fp_border(width = 0)) %>%
+  border_inner_v(border = fp_border(width = 0)) %>%
+  italic(i = 2, j = c(2, 3, 4, 5, 6), part = "header") %>%
+  bold(i = 1, part = "body") %>%
+  align(j = 1,   align = "left",   part = "all") %>%
+  align(j = 2:6, align = "center", part = "all") %>%
+  font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(size = 11, part = "all") %>%
+  width(j = 1,   width = 1.6) %>%
+  width(j = c(2, 4), width = 1.6) %>%
+  width(j = c(3, 5), width = 0.6) %>%
+  width(j = 6,   width = 0.5) %>%
+  set_caption("Table 1. Characteristics of participants")
+
+ft
+```
+
+```{r}
+#| label: export-table
+
+save_as_docx(ft, path = "participant_table.docx")
+cat("Table exported to participant_table.docx\n")
+```
+
+---
+
+# Session Info
+
+```{r}
+#| label: session-info
+#| code-fold: true
+
+sessionInfo()
+```

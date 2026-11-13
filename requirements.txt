@@ -1,0 +1,10 @@
+# Python 3.11; versions of the analysis environment (conda environment "pycrostates-env")
+mne==1.11.0
+pycrostates==0.6.1
+numpy==2.4.1
+scipy==1.17.0
+pandas==3.0.1
+matplotlib==3.10.9
+h5py==3.16.0
+openpyxl==3.1.5
+python-docx==1.2.0   # only for f1_supplement.py (builds the Supplementary Material)

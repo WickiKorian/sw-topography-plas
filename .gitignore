@@ -1,0 +1,28 @@
+# data and results are not part of the repository
+*.set
+*.fdt
+*.fif
+*.mat
+*.npy
+*.npz
+*.pkl
+*.csv
+*.xlsx
+*.docx
+*.png
+*.pdf
+*.svg
+*.log
+logs/
+data/
+data_pycrostates/
+derived/
+archive/
+__pycache__/
+.ipynb_checkpoints/
+*.asv
+
+# exception: reference maps for the MS 1-4 numbering (no participant data)
+!python/reference/*.npy
+# Arial is licensed: place arial.ttf / arialbd.ttf here locally, never commit
+fonts/
