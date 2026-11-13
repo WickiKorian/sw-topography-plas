@@ -216,11 +216,11 @@ rows, gmin = scalar_table(RES / "4. statistics" / "k4" / "permutation_results_k4
 sec = doc.sections[-1]
 orient(True); heading(TOC[5]); table(H4, rows, size=7, widths=[3.6, 2.2, 3.0, 1.3, 3.0, 1.3, 3.0, 1.3, 3.4, 1.3])
 note("Note. Stimulation vs. baseline (sham) night; positive values = higher under stimulation. Paired sign-flip permutation tests (10,000 permutations); interaction: permutation of group labels on within-participant differences. "
-     "dz = Cohen's dz (within participants), d = Cohen's d (interaction: HC vs. CI difference in the stimulation effect); approximate 95% CIs. "
+     "dz = Cohen's dz (within participants), d = Cohen's d (interaction: HC vs. CI difference in the stimulation effect); approximate 95% CIs, not adjusted for multiple comparisons. "
      f"p_FDR: Benjamini–Hochberg within the family of temporal parameters (4 states × 4 parameters), separately per contrast. Group main effects (baseline and stimulation night) did not survive correction (smallest p_FDR = {fp(gmin)}). GEV = global explained variance.")
 rows_w, _ = scalar_table(RES / "4. statistics_weighted" / "k4" / "permutation_results_k4.csv")
 newpage(); heading(TOC[6]); table(H4, rows_w, size=7, widths=[3.6, 2.2, 3.0, 1.3, 3.0, 1.3, 3.0, 1.3, 3.4, 1.3])
-note("Note. As Table S3, but with participants weighted by their number of epochs instead of equally. Effect sizes are comparable to the equally weighted analysis (Table S3).")
+note("Note. As Table S3, but with participants weighted by their number of epochs in the permutation tests instead of equally. Effect sizes are computed unweighted and are therefore identical to Table S3; only the p-values differ.")
 
 # ── Figure S2: 250-ms bins (e2_figure4.py: same layout as Figure 4) ─────────
 # final version finished in Illustrator (as Figure 4) if present, otherwise the script output
