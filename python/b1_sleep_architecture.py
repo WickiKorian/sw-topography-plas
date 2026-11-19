@@ -4,6 +4,9 @@ comparability of the nights, night-order effects, PLAS changing sleep).
 
 Sleep variables from all_vars_in_one_Korian.xlsx (scoring of all nights):
   TIB, TST, SE, SL, WASO (min / %), N1, N2, N3, REM (% of TST)
+Arousal index (arousals per hour of sleep) from the scoring summaries in
+BEHAVIORAL_DATA_all_21-04.xlsx (sheets 19-01-behav, 21-04-behav) and
+BEHAVIORAL_DATA_all_21-03.xlsx (sheet 21-03-behav_COPY)
 Stimulus counts: number of markers per night, read from the annotations of the
 recordings (BL: sham marker D128 / DI64, E1-E3: stimulation marker DI64).
 
@@ -39,8 +42,11 @@ NIGHT_NR  = {"BL": "02", "E1": "03", "E2": "04", "E3": "05"}
 VARIABLES = {                       # column stem: label
     "TIB": "TIB (min)", "TST": "TST (min)", "SE": "SE (%)", "SL": "SL (min)",
     "WASO": "WASO (min)", "N1_perc": "N1 (%)", "N2_perc": "N2 (%)",
-    "N3_perc": "N3 (%)", "REM_perc": "REM (%)",
+    "N3_perc": "N3 (%)", "REM_perc": "REM (%)", "AI": "Arousal index (/h)",
 }
+AROUSAL_SHEETS = [("BEHAVIORAL_DATA_all_21-04.xlsx", "19-01-behav"),
+                  ("BEHAVIORAL_DATA_all_21-04.xlsx", "21-04-behav"),
+                  ("BEHAVIORAL_DATA_all_21-03.xlsx", "21-03-behav_COPY")]
 
 
 def fdr(p):
@@ -57,6 +63,11 @@ def msd(x):
 raw = pd.read_excel(SLEEP_FILE)
 df  = raw[raw["ID"].isin(PARTICIPANT_IDS)].set_index("ID").loc[PARTICIPANT_IDS]
 assert len(df) == 40, len(df)
+_ar = pd.concat([pd.read_excel(PROJECT_ROOT.parent / f, sheet_name=s) for f, s in AROUSAL_SHEETS])
+_ar["VP-CODE"] = _ar["VP-CODE"].astype(str).str.strip()
+_ar = _ar.drop_duplicates("VP-CODE").set_index("VP-CODE").loc[PARTICIPANT_IDS]
+for nt in NIGHTS:
+    df[f"AI_{nt}"] = pd.to_numeric(_ar[f"Arousal_index_{nt}"], errors="coerce").values
 group   = pd.Series(np.where(df.index.isin(HEALTHY_IDS), "HC", "CI"), index=df.index)
 stim_nt = pd.Series(np.where(df.index.isin(USE_NIGHT_E2), "E2", "E1"), index=df.index)
 logger.info(f"40 participants; analysed stimulation night: {stim_nt.value_counts().to_dict()}")
@@ -72,11 +83,16 @@ def n_markers(pid, night):
     ann = mne.read_annotations(str(files[0]))
     return int(np.sum(ann.description == marker))
 
-counts = pd.DataFrame({n: [n_markers(p, n) for p in PARTICIPANT_IDS] for n in NIGHTS},
-                      index=PARTICIPANT_IDS)
-counts["stim_analysed"] = [counts.loc[p, stim_nt[p]] for p in PARTICIPANT_IDS]
-counts.insert(0, "group", group)
-counts.to_csv(OUT_DIR / "stimulus_counts.csv")
+import os
+if os.environ.get("B1_REUSE_COUNTS") == "1" and (OUT_DIR / "stimulus_counts.csv").exists():
+    counts = pd.read_csv(OUT_DIR / "stimulus_counts.csv", index_col=0).loc[PARTICIPANT_IDS]   # reading all recordings is slow
+    logger.info("stimulus counts reused from stimulus_counts.csv")
+else:
+    counts = pd.DataFrame({n: [n_markers(p, n) for p in PARTICIPANT_IDS] for n in NIGHTS},
+                          index=PARTICIPANT_IDS)
+    counts["stim_analysed"] = [counts.loc[p, stim_nt[p]] for p in PARTICIPANT_IDS]
+    counts.insert(0, "group", group)
+    counts.to_csv(OUT_DIR / "stimulus_counts.csv")
 logger.info("markers per night (mean ± SD):\n" + counts.groupby("group")[NIGHTS + ["stim_analysed"]]
             .agg(lambda x: msd(x)).T.to_string())
 u = stats.mannwhitneyu(counts.loc[group == "HC", "stim_analysed"],
