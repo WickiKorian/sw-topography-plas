@@ -45,13 +45,14 @@ Figure 3) was run in MATLAB/RAGU; several scripts read its exported results.
 | e2_figure4 | Coverage time courses, clusters, templates | Figure 4, Figure S2 |
 | e3_figure5_correspondence | Spatial correlation of single-trial and RAGU maps | Figure 5, Results |
 | e4_figureS4_maps | Group-wise maps and normalised stimulation − sham difference maps (windows as Figure 2) | Figure S4 |
+| e5_graphical_abstract | ERP at Fz (stimulation vs sham) and GFP-normalised maps of the two components, 5:2 landscape | Graphical abstract |
 | **f — Supplementary Material** | | |
 | f1_supplement | Builds the Supplementary Material (.docx) from all results | Supplement |
 
 ## Dependencies
 - a1 → a2 → a3 → a4 first. c2, d1, d2, d3 reuse functions of a3; c1 (part B) and
   c3 reuse the epoch selection of c2; e2 uses a4.
-- b4, c4, d4, e1, e2, e3 and e4 need the exported RAGU results (MATLAB).
+- b4, c4, d4, e1, e2, e3, e4 and e5 need the exported RAGU results (MATLAB).
 - c3 can be run in several calls (`TIME_BUDGET_S`); it resumes from its cache.
   c5 likewise (`C5_BUDGET_S`).
 
